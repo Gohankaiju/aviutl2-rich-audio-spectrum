@@ -1,0 +1,4 @@
+releases/
+*.zip
+ras_selftest_report.txt
+Thumbs.db

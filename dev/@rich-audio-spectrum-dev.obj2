@@ -1,0 +1,268 @@
+@rich-audio-spectrum_Debug
+--label:rich-audio-spectrum Dev
+--information:rich-audio-spectrum Debug (dev)
+--track@fontsize:文字サイズ,8,40,14,1
+
+-- 開発者向け: 解析状態と処理時間の表示。配布物には含めない。
+-- 使う場合はこのファイルを script/rich-audio-spectrum/ フォルダへコピーする。
+local okC, core = pcall(require, "ras_core")
+local okE, engine = pcall(require, "ras_engine")
+local okP, presetsm = pcall(require, "ras_presets")
+local rep = {}
+local function add(fmt, ...)
+    local ok2, s = pcall(string.format, fmt, ...)
+    rep[#rep + 1] = ok2 and s or ("[fmt err] " .. tostring(fmt))
+end
+if okC then
+    local ok, err = pcall(function()
+        add("rich-audio-spectrum Debug  core v%s / engine %s / presets %s",
+            core.VERSION,
+            okE and ("v" .. engine.VERSION) or "MISSING",
+            okP and ("v" .. presetsm.VERSION) or "MISSING")
+        local okv, ver = pcall(obj.getinfo, "version")
+        add("aviutl2 version: %s", tostring(ver))
+        local q = core.quality(0)
+        add("quality(Auto) -> %s (bands<=%d)", q.name, q.bands)
+        local oks, sav = pcall(obj.getinfo, "saving")
+        add("saving=%s", tostring(sav))
+        local af = core.get_audio{ type = "fourier", channel = "mix" }
+        if af then
+            add("fourier: n=%d rate=%s peak=%.4f silent=%s", af.n, tostring(af.rate), af.peak, tostring(af.is_silent))
+        else
+            add("fourier: unavailable")
+        end
+        local ap = core.get_audio{ type = "pcm", channel = "dual", size = 4096 }
+        if ap then
+            add("pcm dual: n=%d rate=%s peak=%.4f", ap.n, tostring(ap.rate), ap.peak)
+        else
+            add("pcm: unavailable")
+        end
+        if okP then
+            local okv2, errs = presetsm.validate()
+            add("presets: %d defined, schema %s", #presetsm.list, okv2 and "OK" or ("NG: " .. tostring(errs[1])))
+        end
+        local cnt = 0
+        if _G.RAS_STATE then
+            for _ in pairs(_G.RAS_STATE) do cnt = cnt + 1 end
+        end
+        add("state slices: %d", cnt)
+        local okt, ms = pcall(obj.getinfo, "script_time")
+        add("script_time: %.2f ms", ms or -1)
+    end)
+    if not ok then rep = { "Debug ERROR:", tostring(err) } end
+else
+    rep = { "ras_core.lua が見つかりません" }
+end
+obj.setfont("Consolas", fontsize, 1, 0xccffcc, 0x102010)
+obj.load("text", table.concat(rep, "\n"))
+
+@rich-audio-spectrum_SelfTest
+--label:rich-audio-spectrum Dev
+--information:rich-audio-spectrum SelfTest (dev)
+--track@fontsize:文字サイズ,8,40,13,1
+
+-- 開発者向け: DSP/ジオメトリ/描画α/プリセットスキーマの自動テスト。
+-- 結果は画面と ras_selftest_report.txt へ出力する。
+local okC, core = pcall(require, "ras_core")
+local okD, drawm = pcall(require, "ras_draw")
+local okE, engine = pcall(require, "ras_engine")
+local okP, presetsm = pcall(require, "ras_presets")
+local rep = {}
+local npass, nfail, nskip = 0, 0, 0
+
+local function T(name, cond, detail)
+    if cond then
+        npass = npass + 1
+        rep[#rep + 1] = string.format("PASS %s", name)
+    else
+        nfail = nfail + 1
+        rep[#rep + 1] = string.format("FAIL %s%s", name, detail and (" : " .. tostring(detail)) or "")
+    end
+end
+
+local function SKIP(name, why)
+    nskip = nskip + 1
+    rep[#rep + 1] = string.format("SKIP %s : %s", name, tostring(why))
+end
+
+local function near(a, b, tol)
+    return math.abs(a - b) <= (tol or 0.02)
+end
+
+if okC and okD then
+    local ok, err = pcall(function()
+        rep[#rep + 1] = "== rich-audio-spectrum SelfTest (core v" .. core.VERSION .. ") =="
+
+        T("T01 clamp/lerp", core.clamp(5, 0, 1) == 1 and core.clamp(-1, 0, 1) == 0
+            and core.lerp(0, 10, 0.5) == 5)
+        T("T02 catmull", near(core.catmull(0, 0, 1, 4, 9), 1, 1e-6)
+            and near(core.catmull(1, 0, 1, 4, 9), 4, 1e-6))
+        T("T03 db/display", near(core.db(1), 0, 1e-6)
+            and near(core.db_to_display(-72, -72, -6), 0, 1e-9)
+            and near(core.db_to_display(-6, -72, -6), 1, 1e-9))
+        do
+            local vals = {}
+            for i = 1, 1024 do vals[i] = 0 end
+            vals[46] = 0.8
+            local bands = core.build_bands(vals, 1024, 44100, {
+                bands = 96, freq_lo = 40, freq_hi = 15000,
+                mapping = "log", agg = "peak", min_db = -72, max_db = -6,
+            })
+            local bi, bv = 0, -1
+            for i = 1, 96 do
+                if bands[i] > bv then bv = bands[i]; bi = i end
+            end
+            T("T04 build_bands", (bi >= 51 and bi <= 53) and bv > 0.9 and bands[5] == 0,
+                string.format("argmax=%d val=%.3f", bi, bv))
+        end
+        do
+            local v1 = { 1 }
+            local e1 = { 0 }
+            core.envelope(v1, 1, e1, 0.035, { attack_ms = 35, release_ms = 180 })
+            local v2 = { 0 }
+            local e2 = { 1 }
+            core.envelope(v2, 1, e2, 0.180, { attack_ms = 35, release_ms = 180 })
+            T("T05 envelope", near(v1[1], 0.632, 0.02) and near(v2[1], 0.368, 0.02),
+                string.format("atk=%.3f rel=%.3f", v1[1], v2[1]))
+        end
+        do
+            local r = core.resample({ 0, 1 }, 2, 3, "catmull")
+            T("T06 resample", near(r[1], 0, 1e-6) and near(r[3], 1, 1e-6) and near(r[2], 0.5, 0.05),
+                string.format("%.3f %.3f %.3f", r[1], r[2], r[3]))
+        end
+        do
+            local v = { 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5 }
+            core.smooth(v, 8, 2)
+            local okc = true
+            for i = 1, 8 do
+                if not near(v[i], 0.5, 1e-6) then okc = false end
+            end
+            T("T07 smooth", okc)
+        end
+        do
+            local v = { 1, 1, 1 }
+            core.dc_cut(v, 3)
+            T("T08 dc_cut", near(v[1], 0, 1e-9) and near(v[3], 0, 1e-9))
+        end
+        T("T09 soft_clip", core.soft_clip(0.5) == 0.5 and core.soft_clip(2) <= 1.0
+            and core.soft_clip(1.2) < core.soft_clip(2))
+        do
+            local st = { sig = "" }
+            core.check_sig(st, "a")
+            st.env = { 1 }
+            core.check_sig(st, "a")
+            local kept = st.env ~= nil
+            core.check_sig(st, "b")
+            T("T10 sig reset", kept and st.env == nil)
+        end
+        do
+            local okr, r1, r2 = pcall(function()
+                obj.load("figure", "四角形", 0xffffff, 1)
+                obj.setoption("drawtarget", "tempbuffer", 300, 100)
+                obj.drawpoly({
+                    { -150, -50, 0, 1, 1, 1, 1 }, { 150, -50, 0, 1, 1, 1, 1 },
+                    { 150, 50, 0, 1, 1, 1, 1 }, { -150, 50, 0, 1, 1, 1, 1 },
+                })
+                obj.drawpoly({
+                    { -140, -40, 0, 0.25, 0, 0, 0.5 }, { -60, -40, 0, 0.25, 0, 0, 0.5 },
+                    { -60, 40, 0, 0.25, 0, 0, 0.5 }, { -140, 40, 0, 0.25, 0, 0, 0.5 },
+                })
+                obj.drawpoly({
+                    { 60, -40, 0, 0.5, 0, 0, 0.5 }, { 140, -40, 0, 0.5, 0, 0, 0.5 },
+                    { 140, 40, 0, 0.5, 0, 0, 0.5 }, { 60, 40, 0, 0.5, 0, 0, 0.5 },
+                })
+                obj.setoption("drawtarget", "framebuffer")
+                obj.load("tempbuffer")
+                local ra = obj.getpixel(50, 50, "rgb")
+                local rb = obj.getpixel(250, 50, "rgb")
+                return ra, rb
+            end)
+            if okr then
+                T("T11 straight-alpha", r1 >= 150 and r1 <= 168 and r2 >= 183 and r2 <= 199,
+                    string.format("A=%d B=%d (straight: 159/191)", r1, r2))
+            else
+                T("T11 straight-alpha", false, tostring(r1))
+            end
+        end
+        do
+            local af = core.get_audio{ type = "pcm", channel = "mix", size = 1024 }
+            if af then
+                local okrange = true
+                for i = 1, af.n do
+                    if math.abs(af.values[i]) > 1.0001 then okrange = false end
+                end
+                T("T13 pcm mix range", okrange and af.n > 0,
+                    string.format("n=%d peak=%.3f", af.n, af.peak))
+            else
+                SKIP("T13 pcm mix range", "音声なし")
+            end
+        end
+        do
+            local v = drawm.ring_bars({ 1, 1 }, {
+                radius = 100, barlen = 50, thickness = 4,
+                a0_deg = 0, a1_deg = 360, rot_deg = 0, dir = 0,
+                col1 = { 1, 1, 1 }, col2 = { 1, 1, 1 }, alpha = 1,
+            })
+            T("T14 ring_bars", #v == 8, "verts=" .. #v)
+        end
+        do
+            local xs, ys, m = drawm.lissajous_points({ 1 }, { 1 }, 1, 1, 100)
+            T("T15 lissajous", m == 1 and near(xs[1], 0, 1e-6) and near(ys[1], -141.42, 0.1),
+                string.format("x=%.2f y=%.2f", xs[1], ys[1]))
+        end
+        do
+            local stt = {}
+            local peak, last = 0, 0
+            for f = 1, 90 do
+                local v = { 1 }
+                core.spring(v, 1, stt, 1 / 60, { bounce_pct = 100, attack_ms = 35 })
+                last = v[1]
+                if v[1] > peak then peak = v[1] end
+            end
+            T("T17 spring bounce", peak > 1.02 and math.abs(last - 1) < 0.2,
+                string.format("peak=%.3f last=%.3f", peak, last))
+        end
+        do
+            local stt = {}
+            local v1 = { 1 }
+            core.fall(v1, 1, stt, 1 / 60, 60)
+            local up_ok = near(v1[1], 1, 1e-6)
+            local v2 = { 0 }
+            core.fall(v2, 1, stt, 1 / 60, 60)
+            T("T18 fall", up_ok and v2[1] > 0.9,
+                string.format("up=%.3f fall=%.3f", v1[1], v2[1]))
+        end
+        if okP and okE then
+            local okv, errs = presetsm.validate()
+            local modes_ok = true
+            for _, p in ipairs(presetsm.list) do
+                if not engine.SCALE_KEYS[p.mode] then modes_ok = false end
+            end
+            T("T16 presets schema", okv and modes_ok and #presetsm.list >= 12,
+                okv and ("n=" .. #presetsm.list) or tostring(errs[1]))
+        else
+            T("T16 presets schema", false, "engine/presets require失敗")
+        end
+
+        rep[#rep + 1] = string.format("== RESULT: PASS %d / FAIL %d / SKIP %d ==", npass, nfail, nskip)
+
+        if io then
+            local okp2, sp = pcall(obj.getinfo, "script_path")
+            if okp2 then
+                pcall(function()
+                    local f = assert(io.open(sp .. "ras_selftest_report.txt", "w"))
+                    f:write(table.concat(rep, "\n"))
+                    f:write("\n")
+                    f:close()
+                end)
+            end
+        end
+    end)
+    if not ok then
+        rep[#rep + 1] = "SELFTEST ERROR: " .. tostring(err)
+    end
+else
+    rep = { "補助Luaファイルが見つかりません" }
+end
+obj.setfont("Consolas", fontsize, 1, 0xffffff, 0x000000)
+obj.load("text", table.concat(rep, "\n"))

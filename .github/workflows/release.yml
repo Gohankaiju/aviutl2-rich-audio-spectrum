@@ -1,0 +1,33 @@
+# タグ駆動リリース: `git tag vX.Y.Z && git push --tags` で自動的に
+# そのタグ時点のソースから配布zipをビルドし、GitHub Releaseを作成して添付する。
+# リリースノートはGitHubの自動生成(前タグ以降のコミット一覧)を使用する。
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build zip
+        run: |
+          cd script
+          zip -r "../rich-audio-spectrum_${GITHUB_REF_NAME}.zip" rich-audio-spectrum
+          cd ..
+          unzip -l "rich-audio-spectrum_${GITHUB_REF_NAME}.zip"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ github.ref_name }}
+          files: rich-audio-spectrum_${{ github.ref_name }}.zip
+          generate_release_notes: true
