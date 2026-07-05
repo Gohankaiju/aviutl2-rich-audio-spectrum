@@ -101,7 +101,7 @@ function engine.run_spectrum(cfg)
     -- オブジェクト枠が変わらない。DTMerと同じ挙動。はみ出しは上下クリップ)
     local Hpx = cfg.height or (dtmer and (obj.screen_h or 1080) or math.floor(KH * 2))
 
-    -- 個別オブジェクト(試験): バー/点を独立オブジェクトとして描画して終了
+    -- 個別オブジェクト: バー/点を独立オブジェクトとして描画して終了
     if cfg.multi_obj and (cfg.disp == 0 or cfg.disp == 2) then
         local mn = math.min(nb, 256)   -- 負荷上限
         local mv = vals
@@ -378,7 +378,7 @@ function engine.run_radial(cfg)
     core.smooth_sigma(vals, nb, ((cfg.smoothness or 0) / 100) * nb / 12)
     core.commit(st)
 
-    -- 個別オブジェクト(試験): バー/点を独立オブジェクトとして描画して終了
+    -- 個別オブジェクト: バー/点を独立オブジェクトとして描画して終了
     if cfg.multi_obj and (cfg.disp == 0 or cfg.disp == 2) then
         local mn = math.min(nb, 256)   -- 負荷上限 (ミラーでも総本数=分割数)
         local mv = vals
@@ -551,7 +551,7 @@ function engine.with_trail(st, vals, nb, trail_pct, q, builder)
 end
 
 -- ============================================================
--- 個別オブジェクト描画 (試験実装)
+-- 個別オブジェクト描画
 -- 各バー/点を obj.multiobject() で独立オブジェクトとして描画し、
 -- 後段の個別オブジェクト対応アニメーション効果をバー単位に適用できるようにする。
 -- このモードでは内蔵の残像/SSAAは適用されない(装飾は後段効果に委ねる)。

@@ -14,7 +14,7 @@
 --color@col1:色1,0x00d9ff
 --color@col2:色2,0xff40ff
 --track@trail_pct:残像%,-1,100,-1,1
---check@multi_obj:個別オブジェクト(試験),false
+--check@multi_obj:個別オブジェクト,false
 --group:詳細調整,false
 --track@scale_pct:詳細調整::スケール%,10,400,100,1
 --track@gain_db:詳細調整::感度dB,-24,24,0,0.1
