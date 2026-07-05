@@ -1,11 +1,11 @@
 # rich-audio-spectrum
 
-AviUtl ExEdit2 用のオーディオビジュアライザースクリプトです。
+AviUtl2 用のオーディオビジュアライザースクリプトです。
 プリセットを選ぶだけで、スペクトラム・波形・円形リング・ステレオスコープ・
-音量メーターを高品質に描画します。
+音量メーターちょっとリッチに描画できます。
 
 <p>
-<img src="docs/images/wave2_square_512.gif" width="49%" alt="使用例1"> <img src="docs/images/wave3_square_512.gif" width="49%" alt="使用例2">
+<img src="docs/images/wave2_square_512.gif" width="60%" alt="使用例">
 </p>
 
 ## インストール
@@ -45,7 +45,7 @@ C:\ProgramData\aviutl2\Script\rich-audio-spectrum\
 
 ### 主要パラメータ
 
-どのプリセットを選んでいても、以下がそのまま適用されます。
+すべてのプリセットに共通して、以下がそのまま適用されます。
 
 | 項目 | 説明 |
 | --- | --- |
@@ -61,7 +61,7 @@ C:\ProgramData\aviutl2\Script\rich-audio-spectrum\
 
 「詳細調整」(折りたたみ)には スケール% / 感度dB / 反応の深さ% /
 Attack・Release ms / 滑らかさ / 品質 があります。
-透明度・座標・回転などは AviUtl2 標準の描画設定を使ってください。
+透明度・座標・回転などは AviUtl2 標準の描画設定を使用してください。
 
 詳細は [docs/parameters.md](docs/parameters.md) を参照。
 
@@ -76,6 +76,12 @@ Attack・Release ms / 滑らかさ / 品質 があります。
 - 本数の上限は256(超える分割数は自動で間引き)
 - このモード中は内蔵の残像は無効になります
 - 弾み%・落下%などの反応はそのまま効きます
+
+例えば基本効果の「回転」でバーごとにZ軸回転をかけることで、画像のような **3D的な音声波形** を作成できます。
+
+<p>
+<img src="docs/images/wave3_square_512.gif" width="60%" alt="個別オブジェクト+Z軸回転による3D的な波形">
+</p>
 
 ## 品質設定
 
